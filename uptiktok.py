@@ -161,7 +161,7 @@ def change_ip(change_ip_url):
 try:
     with open(PROXY_FILE, "r") as f:
         proxy_lines = [line.strip() for line in f.readlines()]
-    if len(proxy_lines) != 1:
+    if len(proxy_lines) != 6:
         raise ValueError("Expected 4 proxy lines in proxy.txt.")
 
     proxies = []
@@ -637,7 +637,7 @@ def close_profile(driver, profile_id):
 # ---------------------------------------
 if __name__ == "__main__":
     # Kiểm tra đủ 6 proxy chưa
-    if len(proxies) < 1:
+    if len(proxies) < 6:
         print("Không đủ 6 proxy để chạy 6 luồng, vui lòng kiểm tra lại proxy.txt")
         exit(1)
 
@@ -647,27 +647,27 @@ if __name__ == "__main__":
 
     # Tạo 6 luồng, mỗi luồng xài 1 proxy
     thread1 = threading.Thread(target=process_profile, args=(1, proxies[0], "0,0"))
-    #thread2 = threading.Thread(target=process_profile, args=(2, proxies[1], "1800,0"))
-    #thread3 = threading.Thread(target=process_profile, args=(3, proxies[2], "3600,0"))
-    #thread4 = threading.Thread(target=process_profile, args=(4, proxies[3], "0,1080"))
-    #thread5 = threading.Thread(target=process_profile, args=(5, proxies[4], "1800,1080"))
-    #thread6 = threading.Thread(target=process_profile, args=(6, proxies[5], "3600,1080"))
+    thread2 = threading.Thread(target=process_profile, args=(2, proxies[1], "1800,0"))
+    thread3 = threading.Thread(target=process_profile, args=(3, proxies[2], "3600,0"))
+    thread4 = threading.Thread(target=process_profile, args=(4, proxies[3], "0,1080"))
+    thread5 = threading.Thread(target=process_profile, args=(5, proxies[4], "1800,1080"))
+    thread6 = threading.Thread(target=process_profile, args=(6, proxies[5], "3600,1080"))
 
     thread1.start()
-    #thread2.start()
-    #thread3.start()
-    #thread4.start()
-    #thread5.start()
-    #thread6.start()
+    thread2.start()
+    thread3.start()
+    thread4.start()
+    thread5.start()
+    thread6.start()
 
     thread1.join()
-    #thread2.join()
-    #thread3.join()
-    #thread4.join()
-    #thread5.join()
-    #thread6.join()
+    thread2.join()
+    thread3.join()
+    thread4.join()
+    thread5.join()
+    thread6.join()
 
     print("\nCompleted processing all profiles.")
     # Chạy file login.bat sau khi hoàn tất
-    #login_bat_path = r"C:\Users\namhuunamsv\Desktop\tiktok\login\login.bat"
-    #run_as_admin(login_bat_path)
+    login_bat_path = r"C:\Users\namhuunamsv\Desktop\tiktok\login\login.bat"
+    run_as_admin(login_bat_path)
