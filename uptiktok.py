@@ -77,33 +77,43 @@ reset_lock = threading.Lock() # Lock cho việc reset danh sách
 # ---------------------------------------
 # Hàm cập nhật proxy cho profile
 # ---------------------------------------
+
 def update_proxy(profile_id, raw_proxy):
     """
     Cập nhật proxy cho profile trước khi mở.
     Gửi POST request với raw_proxy (prefix là "http://").
-    Nếu trả về "Profile not found" thì log profile_id ra file profileloi.txt.
+    Nếu trả về "Profile not found" thì log profile id ra file profileloi.txt.
+    Trả về {"success": True} nếu thành công, ngược lại trả về {"success": False}.
     """
-    update_url = f"http://localhost:1010/api/profiles/update/{profile_id}"
+    update_url = f"http://127.0.0.1:19995/api/v3/profiles/update/{profile_id}"
     headers = {"accept": "application/json", "Content-Type": "application/json"}
-    data = {"raw_proxy": f"http://{raw_proxy}"}
+    data = {"raw_proxy": f"{raw_proxy}"}
     try:
         r = requests.post(update_url, headers=headers, json=data)
-        r.raise_for_status()
+        r.raise_for_status()  # Raise HTTPError for bad responses (4xx or 5xx)
+
         response_json = r.json()
         if response_json.get("success") and response_json.get("message") == "Update profile success":
             print(f"Proxy updated successfully for profile {profile_id}.")
-            return True
+            return {"success": True}
         elif (not response_json.get("success")) and response_json.get("message") == "Profile not found":
             print(f"Update failed. Profile not found: {profile_id}")
-            with open(PROFILE_ERROR_FILE, "a") as f:
+            with open("profileloi.txt", "a") as f:
                 f.write(str(profile_id) + "\n")
-            return False
+            return {"success": False}
         else:
             print(f"Unexpected response when updating proxy for profile {profile_id}: {response_json}")
-            return False
-    except Exception as e:
+            return {"success": False}
+    except requests.exceptions.RequestException as e:  # Catch network errors
         print(f"Exception updating proxy for profile {profile_id}: {e}")
-        return False
+        return {"success": False}
+    except ValueError as e:  # Catch JSON decoding errors
+        print(f"Exception decoding JSON response for profile {profile_id}: {e}")
+        print(f"Response text: {r.text}")  # Print the raw response
+        return {"success": False}
+    except Exception as e:  # Catch all other exceptions
+        print(f"Unexpected error updating proxy for profile {profile_id}: {e}")
+        return {"success": False}
 
 # ---------------------------------------
 # Hàm đổi IP
@@ -151,7 +161,7 @@ def change_ip(change_ip_url):
 try:
     with open(PROXY_FILE, "r") as f:
         proxy_lines = [line.strip() for line in f.readlines()]
-    if len(proxy_lines) != 6:
+    if len(proxy_lines) != 1:
         raise ValueError("Expected 4 proxy lines in proxy.txt.")
 
     proxies = []
@@ -372,7 +382,7 @@ def process_profile(thread_id, proxy_data, window_pos):
             print(f"Thread {thread_id}: Proxy info not available; skipping proxy update.")
 
         # 3) Mở profile qua API
-        start_url = f"http://localhost:1010/api/profiles/start/{profile_id}?addination_args=--lang%3Dvi&win_pos={window_pos}&win_size=1800%2C1080&win_scale=0.35"
+        start_url = f"http://127.0.0.1:19995/api/v3/profiles/start/{profile_id}?addination_args=--lang%3Dvi&win_pos={window_pos}&win_size=1800%2C1080&win_scale=0.35"
         print(f"Thread {thread_id}: Opening profile via URL: {start_url}")
         try:
             start_resp = requests.get(start_url)
@@ -474,6 +484,7 @@ def process_profile(thread_id, proxy_data, window_pos):
         # ---------------------------
         # 7) Nhập hashtag
         # ---------------------------
+        time.sleep(2)
         hashtags = load_list(HASHTAG_FILE)
         if not hashtags:
             print(f"Thread {thread_id}: Không có hashtag trong file hashtag.txt")
@@ -540,13 +551,15 @@ def process_profile(thread_id, proxy_data, window_pos):
             human_mouse.human_move_to_element(search_input, click=True)
             type_like_human(search_input, music_name)
             search_input.send_keys(Keys.ENTER)
-            time.sleep(random.uniform(0.8, 1.2))
+            time.sleep(random.uniform(0.6, 1.2))
 
             first_music_card = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "div.jsx-915372485.music-card-container:first-child")))
-            human_mouse.human_move_to_element(first_music_card, click=True)
+            human_mouse.human_move_to_element(first_music_card, click=False)
+            first_music_card.click()
             time.sleep(random.uniform(0.6, 1.2))
             music_operation = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "div.jsx-915372485.music-card-operation")))
-            human_mouse.human_move_to_element(music_operation, click=True)
+            human_mouse.human_move_to_element(music_operation, click=False)
+            music_operation.click()
 
             time.sleep(random.uniform(0.8, 1.2))
 
@@ -610,7 +623,7 @@ def close_and_update_excel(driver, profile_id, row_number, result, message):
     close_profile(driver, profile_id)
 
 def close_profile(driver, profile_id):
-    close_url = f"http://localhost:1010/api/profiles/close/{profile_id}"
+    close_url = f"http://127.0.0.1:19995/api/v3/profiles/close/{profile_id}"
     print(f"Closing profile with URL: {close_url}")
     try:
         requests.get(close_url)
@@ -624,7 +637,7 @@ def close_profile(driver, profile_id):
 # ---------------------------------------
 if __name__ == "__main__":
     # Kiểm tra đủ 6 proxy chưa
-    if len(proxies) < 6:
+    if len(proxies) < 1:
         print("Không đủ 6 proxy để chạy 6 luồng, vui lòng kiểm tra lại proxy.txt")
         exit(1)
 
@@ -634,27 +647,27 @@ if __name__ == "__main__":
 
     # Tạo 6 luồng, mỗi luồng xài 1 proxy
     thread1 = threading.Thread(target=process_profile, args=(1, proxies[0], "0,0"))
-    thread2 = threading.Thread(target=process_profile, args=(2, proxies[1], "1800,0"))
-    thread3 = threading.Thread(target=process_profile, args=(3, proxies[2], "3600,0"))
-    thread4 = threading.Thread(target=process_profile, args=(4, proxies[3], "0,1080"))
-    thread5 = threading.Thread(target=process_profile, args=(5, proxies[4], "1800,1080"))
-    thread6 = threading.Thread(target=process_profile, args=(6, proxies[5], "3600,1080"))
+    #thread2 = threading.Thread(target=process_profile, args=(2, proxies[1], "1800,0"))
+    #thread3 = threading.Thread(target=process_profile, args=(3, proxies[2], "3600,0"))
+    #thread4 = threading.Thread(target=process_profile, args=(4, proxies[3], "0,1080"))
+    #thread5 = threading.Thread(target=process_profile, args=(5, proxies[4], "1800,1080"))
+    #thread6 = threading.Thread(target=process_profile, args=(6, proxies[5], "3600,1080"))
 
     thread1.start()
-    thread2.start()
-    thread3.start()
-    thread4.start()
-    thread5.start()
-    thread6.start()
+    #thread2.start()
+    #thread3.start()
+    #thread4.start()
+    #thread5.start()
+    #thread6.start()
 
     thread1.join()
-    thread2.join()
-    thread3.join()
-    thread4.join()
-    thread5.join()
-    thread6.join()
+    #thread2.join()
+    #thread3.join()
+    #thread4.join()
+    #thread5.join()
+    #thread6.join()
 
     print("\nCompleted processing all profiles.")
     # Chạy file login.bat sau khi hoàn tất
-    login_bat_path = r"C:\Users\namhuunamsv\Desktop\tiktok\login\login.bat"
-    run_as_admin(login_bat_path)
+    #login_bat_path = r"C:\Users\namhuunamsv\Desktop\tiktok\login\login.bat"
+    #run_as_admin(login_bat_path)
